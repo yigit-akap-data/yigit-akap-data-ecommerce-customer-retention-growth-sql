@@ -1,0 +1,22 @@
+SELECT * FROM(
+	SELECT
+		customer_id,
+		order_date,
+		unit_price_usd * quantity as current_spend,
+		order_date - COALESCE(LAG(order_date) OVER(PARTITION BY customer_id ORDER BY order_date),order_date) as previous_order_date_diff,
+		COALESCE(LAG(unit_price_usd * quantity) OVER(PARTITION BY customer_id ORDER BY order_date),unit_price_usd * quantity) as previous_order_spend,
+		ROUND(
+            CASE 
+                WHEN LAG(unit_price_usd * quantity) OVER(PARTITION BY customer_id ORDER BY order_date) IS NULL THEN 0
+                ELSE ((unit_price_usd * quantity) - LAG(unit_price_usd * quantity) OVER(PARTITION BY customer_id ORDER BY order_date)) / 
+                     LAG(unit_price_usd * quantity) OVER(PARTITION BY customer_id ORDER BY order_date) * 100
+            END, 2
+        ) as previous_order_growth_rate,
+		ROUND(
+			AVG(unit_price_usd * quantity) OVER(PARTITION BY customer_id ORDER BY order_date
+			ROWS BETWEEN 3 PRECEDING AND CURRENT ROW)
+			,2) as last_three_order_avg
+	FROM orders
+		) master_dashboard
+WHERE order_date BETWEEN '2024-01-01' AND '2024-12-31'
+ORDER BY customer_id, order_date;
